@@ -1,0 +1,3 @@
+启动命令：
+python collectFile.py
+config.ini为配置文件
