@@ -78,6 +78,7 @@ def main():
     source_dir_str = config['Directory'].get('source_dir', '')
     student_id_list_file = config['Directory'].get('student_id_list_file', '')
     output_dir_name = config['Directory'].get('output_dir_name', 'output')
+    pdf_dir_name = config['Directory'].get('pdf_dir_name', 'pdf')
     
     target_extensions_str = config['FileRules'].get('target_extensions', '')
     student_id_prefix = config['FileRules'].get('student_id_prefix', '')
@@ -85,6 +86,7 @@ def main():
     check_mixed_ids = config.getboolean('Tasks', 'check_mixed_ids', fallback=True)
     check_duplicate_ids = config.getboolean('Tasks', 'check_duplicate_ids', fallback=True)
     delete_unmatched_files = config.getboolean('Tasks', 'delete_unmatched_files', fallback=False)
+    enable_pdf_conversion = config.getboolean('Tasks', 'enable_pdf_conversion', fallback=False)
 
     source_dir = Path(source_dir_str)
     
@@ -219,6 +221,30 @@ def main():
                 print(f"文件拷贝失败: {file} -> {destination_file_path}. 原因: {e}")
             
     print(f"所有操作已完成！成功提取并拷贝 {copy_count} 个文件至: \n{output_folder}")
+
+    # ---------------- 6. Word 转 PDF (可选) ----------------
+    if enable_pdf_conversion:
+        try:
+            from docx2pdf import convert
+        except ImportError:
+            print("\n错误: 无法执行 PDF 转换，因为未安装 docx2pdf 库。请在命令行运行 `pip install docx2pdf` 后重试。")
+            return
+            
+        print("\n[5/5] 准备进行 PDF 转换...")
+        pdf_folder = create_folder(source_dir_str, pdf_dir_name)
+        pdf_count = 0
+        
+        # 遍历已收集到 output_folder 中的 .docx 文件进行转换
+        for docx_file in output_folder.glob("*.docx"):
+            pdf_file = pdf_folder / (docx_file.stem + ".pdf")
+            try:
+                # convert 函数通常接受字符串路径
+                convert(str(docx_file), str(pdf_file))
+                pdf_count += 1
+            except Exception as e:
+                print(f"PDF转换失败: {docx_file.name} -> {e}")
+                
+        print(f"PDF 转换完成！成功转换 {pdf_count} 个文件至: \n{pdf_folder}")
 
 if __name__ == "__main__":
     main()
