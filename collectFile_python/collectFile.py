@@ -347,7 +347,6 @@ def main():
             if not missing_numbers:
                 print("\n所有学生已提交，自动退出监控模式！")
                 break
-            import time
             time.sleep(refresh_interval)
         else:
             break
