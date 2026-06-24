@@ -42,7 +42,7 @@ def extract_numbers(filename, pattern):
         return match.group()
     return None
 
-def create_folder(base_path, output_key):
+def create_folder(base_path, output_key, incremental_copy=False):
     """
     在与 base_path 同级的目录下创建输出文件夹。
     如果文件夹已存在，则清空其中的文件。
@@ -54,7 +54,7 @@ def create_folder(base_path, output_key):
     
     if not output_path.exists():
         output_path.mkdir(parents=True)
-    else:
+    elif not incremental_copy:
         # 清空已有输出文件夹的内容
         for item in output_path.iterdir():
             try:
@@ -90,6 +90,7 @@ def main():
     enable_pdf_conversion = config.getboolean('Tasks', 'enable_pdf_conversion', fallback=False)
 
     refresh_interval = config.getint('Tasks', 'refresh_interval', fallback=0)
+    incremental_copy = config.getboolean('Tasks', 'incremental_copy', fallback=False)
     source_dir = Path(source_dir_str)
     
     if not source_dir.exists() or not source_dir.is_dir():
@@ -260,55 +261,80 @@ def main():
         if not check_mixed_ids and not check_duplicate_ids:
             print("\n注：学号混杂及重复学号检查未启用。")
         print("==============================\n")
+
+        do_copy = (refresh_interval == 0) or (refresh_interval > 0 and incremental_copy)
+        if do_copy:
+            # ---------------- 5. 拷贝与重命名 ----------------
+            print("[4/4] 准备输出文件...")
+            output_folder = create_folder(source_dir_str, output_dir_name, incremental_copy)
+            
+            copy_count = 0
+            skip_count = 0
+            for files in subfolder_files.values():
+                for file in files:
+                    new_file_name = extract_numbers_after(file.name, student_id_prefix)
+                    destination_file_path = output_folder / new_file_name
+                    try:
+                        if incremental_copy and destination_file_path.exists():
+                            src_stat = file.stat()
+                            dst_stat = destination_file_path.stat()
+                            # 如果源文件修改时间不大于目标且大小相同，则判定为未修改，跳过拷贝
+                            if src_stat.st_mtime <= dst_stat.st_mtime and src_stat.st_size == dst_stat.st_size:
+                                skip_count += 1
+                                continue
+        
+                        import shutil
+                        shutil.copy2(file, destination_file_path)
+                        copy_count += 1
+                    except Exception as e:
+                        print(f"文件拷贝失败: {file} -> {destination_file_path}. 原因: {e}")
+                    
+            if incremental_copy:
+                print(f"文件处理完成！本次新提取/更新 {copy_count} 个文件，跳过 {skip_count} 个未更改文件。输出目录: \n{output_folder}")
+            else:
+                print(f"文件处理完成！成功提取并全量拷贝 {copy_count} 个文件。输出目录: \n{output_folder}")
+        
+            # ---------------- 6. Word 转 PDF (可选) ----------------
+            if enable_pdf_conversion:
+                try:
+                    from docx2pdf import convert
+                except ImportError:
+                    print("\n错误: 无法执行 PDF 转换，因为未安装 docx2pdf 库。请在命令行运行 `pip install docx2pdf` 后重试。")
+                else:
+                    print("\n[5/5] 准备进行 PDF 转换...")
+                    pdf_folder = create_folder(source_dir_str, pdf_dir_name, incremental_copy)
+                    pdf_count = 0
+                    pdf_skip_count = 0
+                    
+                    # 遍历已收集到 output_folder 中的 .docx 文件进行转换
+                    for docx_file in output_folder.glob("*.docx"):
+                        pdf_file = pdf_folder / (docx_file.stem + ".pdf")
+                        try:
+                            if incremental_copy and pdf_file.exists():
+                                # 如果 PDF 存在且比 docx 文件更新或修改时间相同，则跳过转换
+                                if docx_file.stat().st_mtime <= pdf_file.stat().st_mtime:
+                                    pdf_skip_count += 1
+                                    continue
+            
+                            # convert 函数通常接受字符串路径
+                            convert(str(docx_file), str(pdf_file))
+                            pdf_count += 1
+                        except Exception as e:
+                            print(f"PDF转换失败: {docx_file.name} -> {e}")
+                            
+                    if incremental_copy:
+                        print(f"PDF 转换完成！本次新转换 {pdf_count} 个文件，跳过 {pdf_skip_count} 个已转换文件。输出目录: \n{pdf_folder}")
+                    else:
+                        print(f"PDF 转换完成！成功转换 {pdf_count} 个文件。输出目录: \n{pdf_folder}")
+        else:
+            print("\n[注] 监控模式下未开启差量拷贝 (incremental_copy=False)，已自动跳过文件拷贝与PDF转换，以免频繁全量拷贝造成卡顿。")
+            print("如需在监控时实时同步文件，请在 config.ini 中将 incremental_copy 设为 True。")
+
         if refresh_interval > 0:
+            import time
             time.sleep(refresh_interval)
         else:
             break
-
-    if refresh_interval > 0:
-        return  # 监控模式下跳过后续的拷贝与PDF转换
-
-
-    # ---------------- 5. 拷贝与重命名 ----------------
-    print("[4/4] 准备输出文件...")
-    output_folder = create_folder(source_dir_str, output_dir_name)
-    
-    copy_count = 0
-    for files in subfolder_files.values():
-        for file in files:
-            new_file_name = extract_numbers_after(file.name, student_id_prefix)
-            destination_file_path = output_folder / new_file_name
-            try:
-                shutil.copy2(file, destination_file_path)
-                copy_count += 1
-            except Exception as e:
-                print(f"文件拷贝失败: {file} -> {destination_file_path}. 原因: {e}")
-            
-    print(f"所有操作已完成！成功提取并拷贝 {copy_count} 个文件至: \n{output_folder}")
-
-    # ---------------- 6. Word 转 PDF (可选) ----------------
-    if enable_pdf_conversion:
-        try:
-            from docx2pdf import convert
-        except ImportError:
-            print("\n错误: 无法执行 PDF 转换，因为未安装 docx2pdf 库。请在命令行运行 `pip install docx2pdf` 后重试。")
-            return
-            
-        print("\n[5/5] 准备进行 PDF 转换...")
-        pdf_folder = create_folder(source_dir_str, pdf_dir_name)
-        pdf_count = 0
-        
-        # 遍历已收集到 output_folder 中的 .docx 文件进行转换
-        for docx_file in output_folder.glob("*.docx"):
-            pdf_file = pdf_folder / (docx_file.stem + ".pdf")
-            try:
-                # convert 函数通常接受字符串路径
-                convert(str(docx_file), str(pdf_file))
-                pdf_count += 1
-            except Exception as e:
-                print(f"PDF转换失败: {docx_file.name} -> {e}")
-                
-        print(f"PDF 转换完成！成功转换 {pdf_count} 个文件至: \n{pdf_folder}")
 
 if __name__ == "__main__":
     main()
