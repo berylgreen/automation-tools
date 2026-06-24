@@ -103,7 +103,27 @@ def main():
     
     # 读取预期的学生名单
     text_data = read_text_file(student_id_list_file)
-    expected_student_ids = set(re.findall(r'\d+', text_data))
+    expected_students = {}
+    for line in text_data.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        numbers = re.findall(r'\d+', line)
+        if numbers:
+            # 假定行内最长的数字串为学号
+            student_id = max(numbers, key=len)
+            
+            # 提取姓名（排除数字及数字加点等序号）
+            parts = line.split()
+            name_parts = []
+            for p in parts:
+                if not re.match(r'^\d+\.?$', p) and student_id not in p:
+                    name_parts.append(p)
+            student_name = " ".join(name_parts)
+            
+            expected_students[student_id] = student_name
+            
+    expected_student_ids = set(expected_students.keys())
     
     print("\n[1/4] 开始扫描文件目录...")
     
@@ -172,14 +192,42 @@ def main():
     missing_numbers = expected_student_ids - found_student_ids
     no_record_numbers = found_student_ids - expected_student_ids
     
+    wrong_type_students = defaultdict(list)
+    for file in unconfigured_files:
+        student_id = extract_numbers(file.name, pattern)
+        if student_id:
+            wrong_type_students[student_id].append(file)
+    
     print("\n========== 扫描报告 ==========")
     print(f"预期学号总数: {len(expected_student_ids)}")
     print(f"成功提取学号: {len(found_student_ids)}")
     print(f"未收到文件数: {len(missing_numbers)}")
+    print(f"提交错误文件人数: {len(wrong_type_students)}")
+    
+    if wrong_type_students:
+        print(f"\n以下学生提交了未配置文件类型（错误扩展名）的文件：")
+        wrong_list = []
+        for sid in sorted(list(wrong_type_students.keys())):
+            pure_sid = sid.replace(student_id_prefix, "") if student_id_prefix else sid
+            name = expected_students.get(pure_sid, expected_students.get(sid, ""))
+            file_names = ", ".join([f.name for f in wrong_type_students[sid]])
+            if name:
+                wrong_list.append(f"  - {sid} ({name}) -> {file_names}")
+            else:
+                wrong_list.append(f"  - {sid} -> {file_names}")
+        print("\n".join(wrong_list))
     
     if missing_numbers:
         print(f"\n未收到以下学号文件（共{len(missing_numbers)}个）：")
-        print(sorted(list(missing_numbers)))
+        missing_list = []
+        for sid in sorted(list(missing_numbers)):
+            pure_sid = sid.replace(student_id_prefix, "") if student_id_prefix else sid
+            name = expected_students.get(pure_sid, expected_students.get(sid, ""))
+            if name:
+                missing_list.append(f"{sid} ({name})")
+            else:
+                missing_list.append(sid)
+        print("\n".join(missing_list))
     
     if no_record_numbers:
         print(f"\n无记录文件（提取出的学号不在名单中，共{len(no_record_numbers)}个）：")
