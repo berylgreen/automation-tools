@@ -7,18 +7,18 @@ import configparser
 from collections import defaultdict
 import time
 
-def delete_files_with_extension(folder_path, file_extensions):
+def delete_unconfigured_files(folder_path, allowed_extensions):
     """
-    删除指定后缀名的文件。
+    删除未在配置中指定的后缀名的文件。
     """
-    extensions = file_extensions.split('/')
+    extensions = allowed_extensions.split('/')
     for root, dirs, files in os.walk(folder_path):
         for file in files:
-            if any(file.endswith(ext) for ext in extensions):
+            if not any(file.endswith(ext) for ext in extensions):
                 file_path = os.path.join(root, file)
                 try:
                     os.remove(file_path)  # 删除文件
-                    print(f"已删除文件: {file_path}")
+                    print(f"已删除非配置类型文件: {file_path}")
                 except Exception as e:
                     print(f"删除文件失败: {file_path}, 错误原因: {e}")
 
@@ -279,26 +279,24 @@ if __name__ == "__main__":
     pdf_folder = config['Paths']['pdf_folder']
     check_dif_student_id_enabled = config.getboolean('Params', 'check_dif_student_id_enabled')
     check_same_student_id_enabled = config.getboolean('Params', 'check_same_student_id_enabled')
+    delete_unconfigured_files_enabled = config.getboolean('Params', 'delete_unconfigured_files_enabled', fallback=False)
 
-    # 获取要删除的文件扩展名
-    delete_extensions = config['Params'].get('delete_extensions', '').strip()
-    
     # 检查路径是否存在
     if not os.path.exists(folder_path):
         print(f"路径不存在: {folder_path}")
         # 这里可以加入访问该路径的代码
     
-    # 删除指定后缀名的文件
-    if delete_extensions:
-        delete_files_with_extension(folder_path, delete_extensions)
+    # 删除未在 file_extension 中配置的文件类型
+    if file_extension and delete_unconfigured_files_enabled:
+        delete_unconfigured_files(folder_path, file_extension)
 
 
     # 这里可以加入错误处理代码或其他逻辑
     copy_and_rename_files(folder_path, file_extension, start_string, output_folder)
     missing_numbers = find_missing_numbers(folder_path, text_file_path, file_extension, start_string)
         
-    print(f"学号错误,无以下学号学生：", missing_numbers)
-    print("未收到以下学号文件:", len(missing_numbers))
+    print(f"未收到以下学号文件：", missing_numbers)
+    print("未收到文件数:", len(missing_numbers))
 
     if check_dif_student_id_enabled:
         
