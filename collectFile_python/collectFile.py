@@ -111,7 +111,7 @@ def find_missing_numbers(folder_path, text_file_path, file_extension, start_stri
     return missing_numbers
 
 
-def check_same_student_id(folder_path):
+def check_same_student_id(folder_path, start_string):
     """
     检查同一个子文件夹中是否存在两个以上的文件，并输出到列表。
     """
@@ -156,7 +156,7 @@ def check_different_student_ids(folder_path):
 
     return different_student_files
 """
-def check_different_student_ids(folder_path):
+def check_different_student_ids(folder_path, start_string):
     """
     检查同一个子文件夹中是否存在两个以上不同学号的文件，并输出到列表。
     """
@@ -223,7 +223,7 @@ def create_folder(base_path,output_key):
         os.makedirs(output_path)
     # If the folder exists, clear its contents
     else:
-        for filename in os.listdir(folder_path):
+        for filename in os.listdir(output_path):
             file_path = os.path.join(output_path, filename)
             try:
                 if os.path.isfile(file_path) or os.path.islink(file_path):
@@ -232,7 +232,7 @@ def create_folder(base_path,output_key):
                     shutil.rmtree(file_path)
             except Exception as e:
                 print(f"Failed to delete {file_path}. Reason: {e}")
-    return output_path;
+    return output_path
 
 def copy_and_rename_files(base_path, file_extensions, start_string, output_key="output"):
     output_folder = create_folder(base_path,output_key)
@@ -271,52 +271,53 @@ if __name__ == "__main__":
     with open('config.ini', 'r', encoding='utf-8') as configfile:
         config.read_file(configfile)
     
-    folder_path = config['Paths']['folder_path']
-    text_file_path = config['Paths']['text_file_path']
-    file_extension = config['Paths']['file_extension']
-    start_string = config['Params']['start_string']
-    output_folder = config['Paths']['output_folder']
-    pdf_folder = config['Paths']['pdf_folder']
-    check_dif_student_id_enabled = config.getboolean('Params', 'check_dif_student_id_enabled')
-    check_same_student_id_enabled = config.getboolean('Params', 'check_same_student_id_enabled')
-    delete_unconfigured_files_enabled = config.getboolean('Params', 'delete_unconfigured_files_enabled', fallback=False)
+    source_dir = config['Paths']['source_dir']
+    student_id_list_file = config['Paths']['student_id_list_file']
+    target_extensions = config['Paths']['target_extensions']
+    student_id_prefix = config['Params']['student_id_prefix']
+    output_dir_name = config['Paths']['output_dir_name']
+    pdf_dir_name = config['Paths']['pdf_dir_name']
+    
+    check_mixed_ids = config.getboolean('Params', 'check_mixed_ids')
+    check_duplicate_ids = config.getboolean('Params', 'check_duplicate_ids')
+    delete_unmatched_files = config.getboolean('Params', 'delete_unmatched_files', fallback=False)
 
     # 检查路径是否存在
-    if not os.path.exists(folder_path):
-        print(f"路径不存在: {folder_path}")
+    if not os.path.exists(source_dir):
+        print(f"路径不存在: {source_dir}")
         # 这里可以加入访问该路径的代码
     
-    # 删除未在 file_extension 中配置的文件类型
-    if file_extension and delete_unconfigured_files_enabled:
-        delete_unconfigured_files(folder_path, file_extension)
+    # 删除未在 target_extensions 中配置的文件类型
+    if target_extensions and delete_unmatched_files:
+        delete_unconfigured_files(source_dir, target_extensions)
 
 
     # 这里可以加入错误处理代码或其他逻辑
-    copy_and_rename_files(folder_path, file_extension, start_string, output_folder)
-    missing_numbers = find_missing_numbers(folder_path, text_file_path, file_extension, start_string)
+    copy_and_rename_files(source_dir, target_extensions, student_id_prefix, output_dir_name)
+    missing_numbers = find_missing_numbers(source_dir, student_id_list_file, target_extensions, student_id_prefix)
         
     print(f"未收到以下学号文件：", missing_numbers)
     print("未收到文件数:", len(missing_numbers))
 
-    if check_dif_student_id_enabled:
+    if check_mixed_ids:
         
         # 检查同一个子文件夹中是否存在两个以上不同学号的文件，并输出到列表
-        different_student_files = check_different_student_ids(folder_path)
+        different_student_files = check_different_student_ids(source_dir, student_id_prefix)
         print("\n同一个子文件夹中存在两个以上不同学号的文件：")
         for file in different_student_files:
             print(file)
 
 
-    if check_same_student_id_enabled:
+    if check_duplicate_ids:
 
-        same_student_files = check_same_student_id(folder_path)
+        same_student_files = check_same_student_id(source_dir, student_id_prefix)
         print("同一个子文件夹中存在两个以上相同学号的文件：")
         for file in same_student_files:
             print(file)
   
 
         # 检查同一个子文件夹中是否存在两个以上的文件，并输出到列表
-        multiple_files = check_multiple_files(folder_path)
+        multiple_files = check_multiple_files(source_dir)
         print("\n同一个子文件夹中存在两个以上的文件：")
         for file in multiple_files:
             print(file)      
