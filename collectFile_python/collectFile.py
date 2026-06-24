@@ -285,6 +285,9 @@ def main():
             skip_count = 0
             for files in subfolder_files.values():
                 for file in files:
+                    student_id = extract_numbers(file.name, pattern)
+                    if not student_id or student_id not in expected_student_ids:
+                        continue
                     new_file_name = extract_numbers_after(file.name, student_id_prefix)
                     destination_file_path = output_folder / new_file_name
                     try:
