@@ -104,6 +104,19 @@ def main():
     # 预编译提取学号的正则表达式，提升性能
     pattern = re.compile(f"{re.escape(student_id_prefix)}\\d+")
     
+    # 处理名单文件路径：如果当前目录下找不到，则尝试在 source_dir 目录下寻找
+    list_file_path = Path(student_id_list_file)
+    if not list_file_path.exists():
+        # 优先尝试把整个相对路径拼接到 source_dir 后
+        fallback_path = source_dir / list_file_path
+        if fallback_path.exists():
+            student_id_list_file = str(fallback_path)
+        else:
+            # 如果还找不到，尝试仅将文件名拼接到 source_dir 下
+            fallback_path_name = source_dir / list_file_path.name
+            if fallback_path_name.exists():
+                student_id_list_file = str(fallback_path_name)
+
     # 读取预期的学生名单
     text_data = read_text_file(student_id_list_file)
     expected_students = {}
