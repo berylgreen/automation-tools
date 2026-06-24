@@ -75,15 +75,16 @@ def main():
     config.read(config_path, encoding='utf-8')
     
     # ---------------- 1. 读取配置 ----------------
-    source_dir_str = config['Paths'].get('source_dir', '')
-    student_id_list_file = config['Paths'].get('student_id_list_file', '')
-    target_extensions_str = config['Paths'].get('target_extensions', '')
-    student_id_prefix = config['Params'].get('student_id_prefix', '')
-    output_dir_name = config['Paths'].get('output_dir_name', 'output')
+    source_dir_str = config['Directory'].get('source_dir', '')
+    student_id_list_file = config['Directory'].get('student_id_list_file', '')
+    output_dir_name = config['Directory'].get('output_dir_name', 'output')
     
-    check_mixed_ids = config.getboolean('Params', 'check_mixed_ids', fallback=True)
-    check_duplicate_ids = config.getboolean('Params', 'check_duplicate_ids', fallback=True)
-    delete_unmatched_files = config.getboolean('Params', 'delete_unmatched_files', fallback=False)
+    target_extensions_str = config['FileRules'].get('target_extensions', '')
+    student_id_prefix = config['FileRules'].get('student_id_prefix', '')
+    
+    check_mixed_ids = config.getboolean('Tasks', 'check_mixed_ids', fallback=True)
+    check_duplicate_ids = config.getboolean('Tasks', 'check_duplicate_ids', fallback=True)
+    delete_unmatched_files = config.getboolean('Tasks', 'delete_unmatched_files', fallback=False)
 
     source_dir = Path(source_dir_str)
     
